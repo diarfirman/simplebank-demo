@@ -1,0 +1,17 @@
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+pydantic==2.7.1
+elasticsearch==8.13.0
+python-dotenv==1.0.1
+
+# OpenTelemetry core
+opentelemetry-api==1.24.0
+opentelemetry-sdk==1.24.0
+
+# Auto-instrumentation
+opentelemetry-instrumentation-fastapi==0.45b0
+opentelemetry-instrumentation-elasticsearch==0.45b0
+opentelemetry-instrumentation-logging==0.45b0
+
+# OTLP Exporter (HTTP)
+opentelemetry-exporter-otlp-proto-http==1.24.0

@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: simplebank-backend
+    env_file: .env
+    environment:
+      - BACKEND_PORT=8000
+    expose:
+      - "8000"
+    networks:
+      - simplebank-net
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: simplebank-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - backend
+    networks:
+      - simplebank-net
+    restart: unless-stopped
+
+networks:
+  simplebank-net:
+    driver: bridge

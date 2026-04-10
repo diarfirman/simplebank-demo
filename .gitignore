@@ -1,0 +1,24 @@
+# Environment
+.env
+backend/.env
+
+# TLS certs (generated locally, never commit private keys)
+nginx/certs/*.pem
+nginx/certs/*.crt
+nginx/certs/*.key
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+
+# Docker
+docker-compose.override.yml

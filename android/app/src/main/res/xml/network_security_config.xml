@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Config untuk DEBUG build.
+    Mengizinkan self-signed certificate di emulator (10.0.2.2).
+    File ini TIDAK aktif di release build — override di build.gradle jika perlu.
+-->
+<network-security-config>
+    <debug-overrides>
+        <trust-anchors>
+            <!-- Trust system CAs -->
+            <certificates src="system" />
+            <!-- Trust user-installed CAs (untuk self-signed cert lokal) -->
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
