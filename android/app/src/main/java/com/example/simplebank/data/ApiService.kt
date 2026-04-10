@@ -19,4 +19,7 @@ interface ApiService {
 
     @GET("/transactions/{accountId}")
     suspend fun getTransactions(@Path("accountId") accountId: String): Response<TransactionListResponse>
+
+    @GET("/simulate-error")
+    suspend fun simulateError(): Response<Unit>
 }

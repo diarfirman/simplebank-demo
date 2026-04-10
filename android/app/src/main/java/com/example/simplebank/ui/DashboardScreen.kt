@@ -16,14 +16,19 @@ import com.example.simplebank.data.models.BalanceResponse
 import com.example.simplebank.data.models.Transaction
 import kotlinx.coroutines.launch
 
+private val accounts = listOf("account_001", "account_002")
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(accountId: String = "account_001") {
+fun DashboardScreen() {
     val scope = rememberCoroutineScope()
+    var accountId by remember { mutableStateOf(accounts[0]) }
     var balance by remember { mutableStateOf<BalanceResponse?>(null) }
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showTransferDialog by remember { mutableStateOf(false) }
+    var isSimulatingError by remember { mutableStateOf(false) }
 
     fun loadData() {
         scope.launch {
@@ -49,62 +54,136 @@ fun DashboardScreen(accountId: String = "account_001") {
         }
     }
 
-    LaunchedEffect(accountId) { loadData() }
-
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-
-        errorMessage?.let {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFCDD2)),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-            ) {
-                Text(
-                    text = "⚠ $it",
-                    modifier = Modifier.padding(12.dp),
-                    color = Color(0xFFB71C1C),
-                )
+    fun simulateError() {
+        scope.launch {
+            isSimulatingError = true
+            try {
+                // Intentional call to non-existent endpoint — generates error span in Kibana
+                RetrofitClient.instance.simulateError()
+            } catch (_: Exception) {
+                // Expected: recorded as error trace by EDOT
+            } finally {
+                isSimulatingError = false
             }
         }
+    }
 
-        Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Saldo Rekening", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(4.dp))
-                if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                } else {
-                    Text(
-                        text = balance?.let { "Rp ${"%,.0f".format(it.balance)}" } ?: "-",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = balance?.ownerName ?: "",
-                        fontSize = 14.sp,
-                        color = Color.Gray,
-                    )
+    // Reset data and reload whenever account switches
+    LaunchedEffect(accountId) {
+        balance = null
+        transactions = emptyList()
+        loadData()
+    }
+
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = ::loadData,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+        ) {
+            // Account switcher
+            item {
+                Text("Akun", fontSize = 12.sp, color = Color.Gray)
+                Spacer(modifier = Modifier.height(6.dp))
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    accounts.forEachIndexed { index, id ->
+                        SegmentedButton(
+                            selected = accountId == id,
+                            onClick = { accountId = id },
+                            shape = SegmentedButtonDefaults.itemShape(index, accounts.size),
+                            label = { Text(id, fontSize = 12.sp) },
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Error banner
+            errorMessage?.let { msg ->
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFCDD2)),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                    ) {
+                        Text(
+                            text = "⚠ $msg",
+                            modifier = Modifier.padding(12.dp),
+                            color = Color(0xFFB71C1C),
+                        )
+                    }
                 }
             }
-        }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Button(onClick = { showTransferDialog = true }, modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                Text("Transfer")
+            // Balance card
+            item {
+                Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Saldo Rekening", fontSize = 14.sp, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        if (isLoading && balance == null) {
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        } else {
+                            Text(
+                                text = balance?.let { "Rp ${"%,.0f".format(it.balance)}" } ?: "-",
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                text = balance?.ownerName ?: "",
+                                fontSize = 14.sp,
+                                color = Color.Gray,
+                            )
+                        }
+                    }
+                }
             }
-            OutlinedButton(onClick = { loadData() }, modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                Text("Refresh")
+
+            // Action buttons
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Button(
+                        onClick = { showTransferDialog = true },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Transfer") }
+
+                    OutlinedButton(
+                        onClick = ::simulateError,
+                        enabled = !isSimulatingError,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Color(0xFFD32F2F),
+                        ),
+                    ) {
+                        if (isSimulatingError) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFFD32F2F),
+                            )
+                        } else {
+                            Text("Simulate Error")
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+            // Transaction list
+            item {
+                Text("Riwayat Transaksi", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
-        Text("Riwayat Transaksi", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-        Spacer(modifier = Modifier.height(8.dp))
-
-        if (transactions.isEmpty() && !isLoading) {
-            Text("Belum ada transaksi.", color = Color.Gray)
-        } else {
-            LazyColumn {
+            if (transactions.isEmpty() && !isLoading) {
+                item { Text("Belum ada transaksi.", color = Color.Gray) }
+            } else {
                 items(transactions) { tx ->
                     TransactionItem(tx = tx, currentAccountId = accountId)
                 }
