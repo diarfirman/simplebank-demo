@@ -14,16 +14,10 @@ import androidx.compose.ui.unit.sp
 import com.example.simplebank.data.RetrofitClient
 import com.example.simplebank.data.models.BalanceResponse
 import com.example.simplebank.data.models.Transaction
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.launch
 
 @Composable
 fun DashboardScreen(accountId: String = "account_001") {
-    val tracer = GlobalOpenTelemetry.getTracer("simplebank-android")
-    val meter = GlobalOpenTelemetry.getMeter("simplebank-android")
-    val balanceFetchCounter = meter.counterBuilder("android.balance_fetch.count").build()
-
     val scope = rememberCoroutineScope()
     var balance by remember { mutableStateOf<BalanceResponse?>(null) }
     var transactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
@@ -35,41 +29,30 @@ fun DashboardScreen(accountId: String = "account_001") {
         scope.launch {
             isLoading = true
             errorMessage = null
-            val span = tracer.spanBuilder("fetch_balance")
-                .setAttribute("account.id", accountId)
-                .startSpan()
-            val scope2 = span.makeCurrent()
             try {
+                // HTTP spans auto-captured by EDOT OkHttp instrumentation plugin
                 val balanceResp = RetrofitClient.instance.getBalance(accountId)
                 val txResp = RetrofitClient.instance.getTransactions(accountId)
                 if (balanceResp.isSuccessful) {
                     balance = balanceResp.body()
-                    balanceFetchCounter.add(1)
                 } else {
                     errorMessage = "Gagal memuat saldo (${balanceResp.code()})"
-                    span.setStatus(StatusCode.ERROR, errorMessage!!)
                 }
                 if (txResp.isSuccessful) {
                     transactions = txResp.body()?.transactions ?: emptyList()
                 }
             } catch (e: Exception) {
                 errorMessage = "Tidak dapat terhubung ke server. Cek koneksi kamu."
-                span.recordException(e)
-                span.setStatus(StatusCode.ERROR, e.message ?: "network_error")
             } finally {
-                scope2.close()
-                span.end()
                 isLoading = false
             }
         }
     }
 
-    // Auto-refresh on first composition (simulate onResume)
     LaunchedEffect(accountId) { loadData() }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
 
-        // Error banner
         errorMessage?.let {
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFCDD2)),
@@ -83,7 +66,6 @@ fun DashboardScreen(accountId: String = "account_001") {
             }
         }
 
-        // Balance card
         Card(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Saldo Rekening", fontSize = 14.sp, color = Color.Gray)
@@ -105,7 +87,6 @@ fun DashboardScreen(accountId: String = "account_001") {
             }
         }
 
-        // Action buttons
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Button(onClick = { showTransferDialog = true }, modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                 Text("Transfer")
@@ -117,7 +98,6 @@ fun DashboardScreen(accountId: String = "account_001") {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Transaction history
         Text("Riwayat Transaksi", fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         Spacer(modifier = Modifier.height(8.dp))
 

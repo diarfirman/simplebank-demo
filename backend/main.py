@@ -36,7 +36,7 @@ _tracer_provider.add_span_processor(
     BatchSpanProcessor(
         OTLPSpanExporter(
             endpoint=os.environ["OTLP_ENDPOINT"] + "/v1/traces",
-            headers={"Authorization": "Bearer " + os.environ["OTLP_TOKEN"]},
+            headers={"Authorization": "ApiKey " + os.environ["OTLP_TOKEN"]},
         )
     )
 )
@@ -47,7 +47,7 @@ tracer = trace.get_tracer("simplebank.backend")
 _metric_reader = PeriodicExportingMetricReader(
     OTLPMetricExporter(
         endpoint=os.environ["OTLP_ENDPOINT"] + "/v1/metrics",
-        headers={"Authorization": "Bearer " + os.environ["OTLP_TOKEN"]},
+        headers={"Authorization": "ApiKey " + os.environ["OTLP_TOKEN"]},
     )
 )
 _meter_provider = MeterProvider(resource=_resource, metric_readers=[_metric_reader])
@@ -198,7 +198,7 @@ async def transfer(req: TransferRequest):
         # Step 3: Record transaction
         with tracer.start_as_current_span("save_transaction"):
             await es.index(
-                index="bank_transactions",
+                index="simplebank-transactions",
                 id=transaction_id,
                 document={
                     "transaction_id": transaction_id,
@@ -227,7 +227,7 @@ async def get_transactions(account_id: str):
     with tracer.start_as_current_span("fetch_transactions") as span:
         span.set_attribute("account.id", account_id)
         result = await es.search(
-            index="bank_transactions",
+            index="simplebank-transactions",
             body={
                 "query": {
                     "bool": {

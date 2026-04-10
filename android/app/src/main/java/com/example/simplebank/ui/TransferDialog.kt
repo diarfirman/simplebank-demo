@@ -10,8 +10,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.simplebank.data.RetrofitClient
 import com.example.simplebank.data.models.TransferRequest
-import io.opentelemetry.api.GlobalOpenTelemetry
-import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.launch
 
 @Composable
@@ -20,10 +18,6 @@ fun TransferDialog(
     onDismiss: () -> Unit,
     onSuccess: () -> Unit,
 ) {
-    val tracer = GlobalOpenTelemetry.getTracer("simplebank-android")
-    val meter = GlobalOpenTelemetry.getMeter("simplebank-android")
-    val transferCounter = meter.counterBuilder("android.transfer.count").build()
-
     val scope = rememberCoroutineScope()
     var toAccountId by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
@@ -72,13 +66,8 @@ fun TransferDialog(
                     scope.launch {
                         isLoading = true
                         errorMessage = null
-                        val span = tracer.spanBuilder("user_click_transfer")
-                            .setAttribute("transfer.from", fromAccountId)
-                            .setAttribute("transfer.to", toAccountId)
-                            .setAttribute("transfer.amount", amountDouble)
-                            .startSpan()
-                        val spanScope = span.makeCurrent()
                         try {
+                            // HTTP span auto-captured by EDOT OkHttp instrumentation plugin
                             val response = RetrofitClient.instance.transfer(
                                 TransferRequest(
                                     fromAccountId = fromAccountId,
@@ -87,32 +76,17 @@ fun TransferDialog(
                                 )
                             )
                             if (response.isSuccessful) {
-                                transferCounter.add(1, io.opentelemetry.api.common.Attributes.of(
-                                    io.opentelemetry.api.common.AttributeKey.stringKey("status"), "success"
-                                ))
                                 onSuccess()
                             } else {
-                                val errBody = response.errorBody()?.string() ?: "Unknown error"
                                 errorMessage = when (response.code()) {
                                     422 -> "Saldo tidak mencukupi"
                                     404 -> "Rekening tujuan tidak ditemukan"
-                                    else -> "Transfer gagal: $errBody"
+                                    else -> "Transfer gagal (${response.code()})"
                                 }
-                                transferCounter.add(1, io.opentelemetry.api.common.Attributes.of(
-                                    io.opentelemetry.api.common.AttributeKey.stringKey("status"), "failed"
-                                ))
-                                span.setStatus(StatusCode.ERROR, errorMessage!!)
                             }
                         } catch (e: Exception) {
                             errorMessage = "Tidak dapat terhubung ke server"
-                            transferCounter.add(1, io.opentelemetry.api.common.Attributes.of(
-                                io.opentelemetry.api.common.AttributeKey.stringKey("status"), "error"
-                            ))
-                            span.recordException(e)
-                            span.setStatus(StatusCode.ERROR, e.message ?: "network_error")
                         } finally {
-                            spanScope.close()
-                            span.end()
                             isLoading = false
                         }
                     }

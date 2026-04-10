@@ -1,15 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Network Security Config untuk DEBUG build.
-    Mengizinkan self-signed certificate di emulator (10.0.2.2).
-    File ini TIDAK aktif di release build — override di build.gradle jika perlu.
+    - domain-config: trust self-signed cert lokal untuk koneksi ke emulator host (10.0.2.2)
+    - debug-overrides: izinkan user-installed CA untuk tools tambahan (Charles, mitmproxy, dll)
 -->
 <network-security-config>
+    <!-- Trust self-signed cert nginx untuk local dev (10.0.2.2 = host machine dari emulator) -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <trust-anchors>
+            <certificates src="@raw/local_cert" />
+        </trust-anchors>
+    </domain-config>
+
     <debug-overrides>
         <trust-anchors>
-            <!-- Trust system CAs -->
             <certificates src="system" />
-            <!-- Trust user-installed CAs (untuk self-signed cert lokal) -->
             <certificates src="user" />
         </trust-anchors>
     </debug-overrides>
